@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>极简记账本</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    /* 自定义分类标签颜色 */
+    .cat-餐饮 { background: #f97316; }
+    .cat-通勤 { background: #3b82f6; }
+    .cat-购物 { background: #a855f7; }
+    .cat-其他 { background: #6b7280; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-8">
+
+  <!-- 顶部标题 -->
+  <header class="bg-white shadow-sm sticky top-0 z-10">
+    <div class="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-lg font-bold text-gray-800">极简记账本</h1>
+      <span id="currentMonth" class="text-sm text-gray-500"></span>
+    </div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 mt-4 space-y-4">
+
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-3 gap-3">
+      <div class="bg-white rounded-xl p-3 text-center shadow-sm">
+        <p class="text-xs text-gray-400">本月收入</p>
+        <p id="totalIncome" class="text-lg font-bold text-green-600 mt-1">0.00</p>
+      </div>
+      <div class="bg-white rounded-xl p-3 text-center shadow-sm">
+        <p class="text-xs text-gray-400">本月支出</p>
+        <p id="totalExpense" class="text-lg font-bold text-red-500 mt-1">0.00</p>
+      </div>
+      <div class="bg-white rounded-xl p-3 text-center shadow-sm">
+        <p class="text-xs text-gray-400">当期结余</p>
+        <p id="balance" class="text-lg font-bold text-blue-600 mt-1">0.00</p>
+      </div>
+    </div>
+
+    <!-- 饼图 -->
+    <div class="bg-white rounded-xl p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-gray-600 mb-2">支出分类占比</h2>
+      <div class="relative" style="max-height: 260px;">
+        <canvas id="pieChart"></canvas>
+      </div>
+      <p id="noChartTip" class="text-center text-xs text-gray-300 hidden py-8">暂无支出数据</p>
+    </div>
+
+    <!-- 记录表单 -->
+    <div class="bg-white rounded-xl p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-gray-600 mb-3">记一笔</h2>
+      <form id="recordForm" class="space-y-3">
+        <!-- 金额 -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">金额</label>
+          <input id="amountInput" type="number" step="0.01" min="0.01" placeholder="0.00" required
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        <!-- 收支类型 -->
+        <div class="flex gap-3">
+          <label class="flex-1 flex items-center justify-center gap-1 border border-gray-200 rounded-lg py-2 cursor-pointer text-sm transition has-[:checked]:border-green-500 has-[:checked]:text-green-600 has-[:checked]:bg-green-50">
+            <input type="radio" name="type" value="income" class="sr-only">
+            <span>收入</span>
+          </label>
+          <label class="flex-1 flex items-center justify-center gap-1 border border-gray-200 rounded-lg py-2 cursor-pointer text-sm transition has-[:checked]:border-red-400 has-[:checked]:text-red-500 has-[:checked]:bg-red-50">
+            <input type="radio" name="type" value="expense" class="sr-only" checked>
+            <span>支出</span>
+          </label>
+        </div>
+        <!-- 分类 -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">分类</label>
+          <div class="flex gap-2 flex-wrap" id="categoryGroup">
+            <button type="button" data-cat="餐饮" class="cat-btn px-3 py-1 rounded-full text-xs border border-gray-200 transition hover:bg-orange-50 has-[:checked]:bg-orange-500">餐饮</button>
+            <button type="button" data-cat="通勤" class="cat-btn px-3 py-1 rounded-full text-xs border border-gray-200 transition hover:bg-blue-50">通勤</button>
+            <button type="button" data-cat="购物" class="cat-btn px-3 py-1 rounded-full text-xs border border-gray-200 transition hover:bg-purple-50">购物</button>
+          </div>
+          <input id="customCat" type="text" placeholder="自定义分类（可选）" maxlength="10"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        <!-- 备注 -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">备注</label>
+          <input id="noteInput" type="text" placeholder="选填" maxlength="50"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        <!-- 提交 -->
+        <button type="submit"
+          class="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 active:scale-[0.98] transition">
+          添加记录
+        </button>
+      </form>
+    </div>
+
+    <!-- 记录列表 -->
+    <div class="bg-white rounded-xl p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-gray-600">收支明细</h2>
+        <button id="clearAll" class="text-xs text-gray-400 hover:text-red-400 transition">清空全部</button>
+      </div>
+      <ul id="recordList" class="space-y-2"></ul>
+      <p id="noRecordTip" class="text-center text-xs text-gray-300 py-6">还没有记录，快去记一笔吧</p>
+    </div>
+
+  </main>
+
+  <script>
+    // ========== 数据层 ==========
+    const STORAGE_KEY = 'simple_accounting_records';
+
+    // 读取所有记录
+    function loadRecords() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    // 保存记录
+    function saveRecords(records) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+
+    // ========== 状态 ==========
+    let records = loadRecords();
+    let selectedCategory = '餐饮';
+    let pieChart = null;
+
+    // ========== 工具函数 ==========
+    function getNow() {
+      const d = new Date();
+      return {
+        year: d.getFullYear(),
+        month: d.getMonth() + 1,
+        date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        full: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      };
+    }
+
+    function formatMoney(n) {
+      return Number(n).toFixed(2);
+    }
+
+    // 防 XSS：转义 HTML 特殊字符
+    function escapeHtml(str) {
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return String(str).replace(/[&<>"']/g, c => map[c]);
+    }
+
+    // ========== 当月统计 ==========
+    function refreshStats() {
+      const now = getNow();
+      const monthRecords = records.filter(r => r.date && r.date.startsWith(now.date));
+      const income = monthRecords.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
+      const expense = monthRecords.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+      document.getElementById('totalIncome').textContent = formatMoney(income);
+      document.getElementById('totalExpense').textContent = formatMoney(expense);
+      document.getElementById('balance').textContent = formatMoney(income - expense);
+      document.getElementById('currentMonth').textContent = `${now.year}年${now.month}月`;
+    }
+
+    // ========== 饼图 ==========
+    function refreshChart() {
+      const now = getNow();
+      const monthExpenses = records.filter(r => r.date && r.date.startsWith(now.date) && r.type === 'expense');
+
+      // 按分类汇总
+      const catMap = {};
+      monthExpenses.forEach(r => {
+        const cat = r.category || '其他';
+        catMap[cat] = (catMap[cat] || 0) + r.amount;
+      });
+
+      const labels = Object.keys(catMap);
+      const data = Object.values(catMap);
+      const noChartTip = document.getElementById('noChartTip');
+      const canvas = document.getElementById('pieChart');
+
+      if (labels.length === 0) {
+        canvas.classList.add('hidden');
+        noChartTip.classList.remove('hidden');
+        return;
+      }
+      canvas.classList.remove('hidden');
+      noChartTip.classList.add('hidden');
+
+      const colors = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#f43f5e', '#eab308', '#6366f1', '#14b8a6'];
+
+      if (pieChart) pieChart.destroy();
+      pieChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: colors.slice(0, labels.length),
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '55%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 16, usePointStyle: true, pointStyleWidth: 8, font: { size: 12 } }
+            }
+          }
+        }
+      });
+    }
+
+    // ========== 记录列表渲染 ==========
+    function refreshList() {
+      const list = document.getElementById('recordList');
+      const tip = document.getElementById('noRecordTip');
+
+      if (records.length === 0) {
+        list.innerHTML = '';
+        tip.classList.remove('hidden');
+        return;
+      }
+      tip.classList.add('hidden');
+
+      // 按时间倒序显示
+      const sorted = [...records].reverse();
+      list.innerHTML = sorted.map((r, i) => {
+        const realIndex = records.length - 1 - i;
+        const isIncome = r.type === 'income';
+        const sign = isIncome ? '+' : '-';
+        const color = isIncome ? 'text-green-600' : 'text-red-500';
+        const cat = escapeHtml(r.category || '其他');
+        const catColor = `cat-${cat}`;
+        const note = escapeHtml(r.note || r.category || '未备注');
+        const time = escapeHtml(r.time || '');
+        return `
+          <li class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="${catColor} text-white text-[10px] px-2 py-0.5 rounded-full shrink-0">${cat}</span>
+              <div class="min-w-0">
+                <p class="text-sm text-gray-700 truncate">${note}</p>
+                <p class="text-[10px] text-gray-300">${time}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="text-sm font-medium ${color}">${sign}${formatMoney(r.amount)}</span>
+              <button onclick="deleteRecord(${realIndex})" class="text-gray-300 hover:text-red-400 text-xs">&times;</button>
+            </div>
+          </li>`;
+      }).join('');
+    }
+
+    // ========== 分类按钮交互 ==========
+    const categoryGroup = document.getElementById('categoryGroup');
+    const customCat = document.getElementById('customCat');
+
+    // 高亮选中分类
+    function highlightCat() {
+      categoryGroup.querySelectorAll('.cat-btn').forEach(btn => {
+        const active = btn.dataset.cat === selectedCategory;
+        btn.classList.toggle('bg-gray-800', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('border-gray-800', active);
+        btn.classList.toggle('border-gray-200', !active);
+      });
+    }
+    highlightCat();
+
+    categoryGroup.addEventListener('click', e => {
+      const btn = e.target.closest('.cat-btn');
+      if (!btn) return;
+      selectedCategory = btn.dataset.cat;
+      customCat.value = '';
+      highlightCat();
+    });
+
+    // 自定义分类输入时取消按钮选中
+    customCat.addEventListener('input', () => {
+      if (customCat.value.trim()) {
+        selectedCategory = customCat.value.trim();
+        categoryGroup.querySelectorAll('.cat-btn').forEach(btn => {
+          btn.classList.remove('bg-gray-800', 'text-white', 'border-gray-800');
+          btn.classList.add('border-gray-200');
+        });
+      } else {
+        selectedCategory = '餐饮';
+        highlightCat();
+      }
+    });
+
+    // ========== 表单提交 ==========
+    document.getElementById('recordForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const amount = parseFloat(document.getElementById('amountInput').value);
+      const type = document.querySelector('input[name="type"]:checked').value;
+      const note = document.getElementById('noteInput').value.trim();
+      const category = customCat.value.trim() || selectedCategory;
+
+      if (!amount || amount <= 0) return;
+
+      const now = getNow();
+      records.push({
+        amount,
+        type,
+        category,
+        note,
+        date: now.date,
+        time: now.full
+      });
+      saveRecords(records);
+
+      // 重置表单
+      document.getElementById('amountInput').value = '';
+      document.getElementById('noteInput').value = '';
+      customCat.value = '';
+      selectedCategory = '餐饮';
+      highlightCat();
+
+      refreshAll();
+    });
+
+    // ========== 删除记录 ==========
+    window.deleteRecord = function (index) {
+      if (!confirm('确定删除这条记录？')) return;
+      records.splice(index, 1);
+      saveRecords(records);
+      refreshAll();
+    };
+
+    // ========== 清空全部 ==========
+    document.getElementById('clearAll').addEventListener('click', () => {
+      if (!confirm('确定清空所有记录？此操作不可恢复。')) return;
+      records = [];
+      saveRecords(records);
+      refreshAll();
+    });
+
+    // ========== 统一刷新 ==========
+    function refreshAll() {
+      refreshStats();
+      refreshChart();
+      refreshList();
+    }
+
+    // 初始化
+    refreshAll();
+  </script>
+
+</body>
+</html>
