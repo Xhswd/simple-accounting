@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown 一键格式化美化工具</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;background:#f5f6fa;color:#2d3436;font-size:15px;line-height:1.6}
+.app{display:flex;flex-direction:column;height:100vh;max-width:1400px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 20px;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:12px;flex-shrink:0}
+header h1{font-size:18px;font-weight:700;color:#2d3436;display:flex;align-items:center;gap:8px}
+header h1 span{background:#6c5ce7;color:#fff;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:500}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap;font-family:inherit}
+.btn-primary{background:#6c5ce7;color:#fff}
+.btn-primary:hover{background:#5a4bd1;transform:translateY(-1px)}
+.btn-success{background:#00b894;color:#fff}
+.btn-success:hover{background:#00a381;transform:translateY(-1px)}
+.btn-danger{background:#fd79a8;color:#fff}
+.btn-danger:hover{background:#e86f9a;transform:translateY(-1px)}
+.btn-outline{background:transparent;color:#636e72;border:1px solid #dfe6e9}
+.btn-outline:hover{background:#f8f9fa;border-color:#b2bec3}
+.btn:active{transform:scale(.97)}
+.stats{font-size:12px;color:#b2bec3;margin-left:auto}
+.stats span{margin:0 4px}
+.copy-toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#00b894;color:#fff;padding:10px 24px;border-radius:10px;font-size:14px;font-weight:500;opacity:0;transition:opacity .35s;pointer-events:none;z-index:100;box-shadow:0 4px 20px rgba(0,184,148,.3)}
+.copy-toast.show{opacity:1}
+.main{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0}
+.panel{display:flex;flex-direction:column;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #f1f2f6;flex-shrink:0}
+.panel-header label{font-size:13px;font-weight:600;color:#636e72;display:flex;align-items:center;gap:6px}
+.panel-header .badge{font-size:11px;background:#dfe6e9;color:#636e72;padding:1px 8px;border-radius:10px;font-weight:400}
+#inputEl{flex:1;width:100%;padding:16px;border:none;outline:none;resize:none;font-family:"SF Mono","Fira Code","Consolas","Courier New",monospace;font-size:14px;line-height:1.7;color:#2d3436;tab-size:2;min-height:200px}
+#inputEl::placeholder{color:#b2bec3}
+#outputEl{flex:1;width:100%;padding:16px;border:none;outline:none;resize:none;font-family:"SF Mono","Fira Code","Consolas","Courier New",monospace;font-size:14px;line-height:1.7;color:#2d3436;tab-size:2;background:#fafafa;min-height:200px}
+#outputEl:focus{outline:none}
+.panel-footer{display:flex;align-items:center;gap:8px;padding:8px 16px;border-top:1px solid #f1f2f6;font-size:12px;color:#b2bec3;flex-shrink:0}
+.panel-footer .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.dot-ok{background:#00b894}
+.dot-warn{background:#fdcb6e}
+@media(max-width:820px){.app{padding:10px}.main{grid-template-columns:1fr;gap:10px}header h1{font-size:16px}.panel{min-height:250px}}
+@media(max-width:480px){.app{padding:6px}.toolbar{gap:4px}.btn{padding:6px 12px;font-size:12px}header{padding:10px 14px;gap:8px}header h1{font-size:14px}#inputEl,#outputEl{padding:12px;font-size:13px}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>✎ Markdown 格式化 <span>v1.0</span></h1>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="formatBtn">⟳ 格式化</button>
+      <button class="btn btn-success" id="copyBtn">📋 复制结果</button>
+      <button class="btn btn-danger" id="clearBtn">🗑 清空</button>
+      <div class="stats"><span id="inputStats">字数 0</span>·<span id="lineStats">行 0</span></div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="panel">
+      <div class="panel-header">
+        <label>⌨ 原始 Markdown <span class="badge">粘贴到这里</span></label>
+      </div>
+      <textarea id="inputEl" placeholder="在此粘贴杂乱的 Markdown 文本，右侧自动实时格式化…"></textarea>
+      <div class="panel-footer"><span class="dot dot-ok"></span> 实时预览中</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <label>✔ 格式化结果</label>
+      </div>
+      <textarea id="outputEl" readonly placeholder="格式化后的 Markdown 将显示在这里…"></textarea>
+      <div class="panel-footer">
+        <span class="dot dot-ok" id="statusDot"></span>
+        <span id="outputStats">等待输入…</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="copy-toast" id="toast">✓ 已复制到剪贴板</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ===== DOM 引用 ===== */
+  const inputEl   = document.getElementById('inputEl');
+  const outputEl  = document.getElementById('outputEl');
+  const formatBtn = document.getElementById('formatBtn');
+  const copyBtn   = document.getElementById('copyBtn');
+  const clearBtn  = document.getElementById('clearBtn');
+  const toast     = document.getElementById('toast');
+  const inputStats = document.getElementById('inputStats');
+  const lineStats  = document.getElementById('lineStats');
+  const outputStats = document.getElementById('outputStats');
+  const statusDot  = document.getElementById('statusDot');
+
+  /* ===== 格式化引擎 ===== */
+
+  // 判断是否为代码围栏
+  function isFenceLine(s) {
+    return /^```/.test(s.trim());
+  }
+
+  // 判断是否为分割线(---, ***, ___)
+  function isHR(s) {
+    var m = s.trim().match(/^([-*_])(?:\s*\1)*$/);
+    return m && m[0].replace(/\s/g, '').length >= 3;
+  }
+
+  // 修复单行格式
+  function fixLine(line) {
+    var trimmed = line.trim();
+    if (!trimmed) return '';
+
+    // 分割线: 保持原样
+    if (isHR(trimmed)) return trimmed;
+    // 代码围栏: 不动
+    if (isFenceLine(trimmed)) return line;
+
+    // 修复标题: #文字 → # 文字
+    var h = trimmed.match(/^(#{1,6})([^\s#].*)$/);
+    if (h) return h[1] + ' ' + h[2];
+
+    // 修复无序列表: 统一为 - 加空格，避免误伤 *强调*
+    var ul = line.match(/^(\s*)[-*+](\s+)(.*)$/);
+    if (ul) return ul[1] + '- ' + ul[3];
+
+    var compactUl = line.match(/^(\s*)([-+])([^\s\d].*)$/);
+    if (compactUl) return compactUl[1] + '- ' + compactUl[3];
+
+    // 修复有序列表: 确保 . 后跟空格
+    var ol = line.match(/^(\s*)(\d+)\.(\s+)(.*)$/);
+    if (ol) return ol[1] + ol[2] + '. ' + ol[4];
+
+    var compactOl = line.match(/^(\s*)(\d+)\.([^\s\d.].*)$/);
+    if (compactOl) return compactOl[1] + compactOl[2] + '. ' + compactOl[3];
+
+    return line;
+  }
+
+  // 只修复代码块外的普通行
+  function fixLines(lines) {
+    var inCodeBlock = false;
+    return lines.map(function(line) {
+      if (isFenceLine(line)) {
+        inCodeBlock = !inCodeBlock;
+        return line;
+      }
+      return inCodeBlock ? line : fixLine(line);
+    });
+  }
+
+  // 平衡代码围栏: 补全不完整的 ``` 标记
+  function balanceFences(lines) {
+    var open = false, result = [];
+    for (var i = 0; i < lines.length; i++) {
+      result.push(lines[i]);
+      if (isFenceLine(lines[i])) open = !open;
+    }
+    if (open) result.push('```');
+    return result;
+  }
+
+  // 分类行类型 (用于间距规则)
+  function classifyLine(trimmed) {
+    if (isFenceLine(trimmed)) return 'fence';
+    if (isHR(trimmed)) return 'hr';
+    if (/^#{1,6}\s/.test(trimmed)) return 'heading';
+    if (/^(\s*)[-*+]\s/.test(trimmed)) return 'list';
+    if (/^(\s*)\d+\.\s/.test(trimmed)) return 'olist';
+    if (/^>/.test(trimmed)) return 'quote';
+    return 'para';
+  }
+
+  // 判断两个类型间是否需要空行
+  function needsBlank(prev, curr) {
+    if (prev === 'start' || prev === curr) return false;
+    if (prev === 'code' || curr === 'code') return false;
+    if (prev === 'fence' || curr === 'fence') return true;
+    if (curr === 'heading') return true;
+    if (curr === 'hr') return prev !== 'hr';
+    if ((curr === 'list' || curr === 'olist') && prev !== 'list' && prev !== 'olist') return true;
+    if ((prev === 'list' || prev === 'olist') && curr !== 'list' && curr !== 'olist') return true;
+    if (curr === 'quote' && prev !== 'quote') return true;
+    if (prev === 'quote' && curr !== 'quote') return true;
+    if (prev === 'para' && curr === 'para') return false;
+    if (prev === 'blank') return false;
+    return prev !== curr;
+  }
+
+  // 规整间距
+  function normalizeSpacing(lines) {
+    // 第1步: 合并连续空行为最多1行
+    var step1 = [], lastBlank = false;
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === '') {
+        if (!lastBlank) step1.push('');
+        lastBlank = true;
+      } else {
+        step1.push(lines[i]);
+        lastBlank = false;
+      }
+    }
+
+    // 第2步: 在区块间插入/保留空行
+    var result = [], inCodeBlock = false, prevType = 'start';
+
+    for (var j = 0; j < step1.length; j++) {
+      var line = step1[j], trimmed = line.trim();
+
+      if (trimmed === '') {
+        result.push('');
+        prevType = 'blank';
+        continue;
+      }
+
+      var isFence = isFenceLine(trimmed);
+
+      if (inCodeBlock) {
+        result.push(line);
+        if (isFence) {
+          inCodeBlock = false;
+          result.push('');
+          prevType = 'fence';
+        } else {
+          prevType = 'code';
+        }
+        continue;
+      }
+
+      if (isFence) {
+        if (result.length > 0 && result[result.length - 1] !== '') result.push('');
+        result.push(line);
+        inCodeBlock = true;
+        prevType = 'fence';
+        continue;
+      }
+
+      // 普通行
+      var type = classifyLine(trimmed);
+
+      // 插入空行
+      if (needsBlank(prevType, type)) {
+        if (result.length > 0 && result[result.length - 1] !== '') {
+          result.push('');
+        }
+      }
+
+      result.push(line);
+      prevType = type;
+    }
+
+    // 第3步: 再次合并连续空行
+    var final = [], lb = false;
+    for (var k = 0; k < result.length; k++) {
+      if (result[k] === '') {
+        if (!lb) final.push('');
+        lb = true;
+      } else {
+        final.push(result[k]);
+        lb = false;
+      }
+    }
+
+    // 修剪首尾空行
+    while (final.length > 0 && final[0] === '') final.shift();
+    while (final.length > 1 && final[final.length - 1] === '' && final[final.length - 2] === '') final.pop();
+    // 保持末尾一个换行
+    if (final.length > 0 && final[final.length - 1] !== '') final.push('');
+
+    return final;
+  }
+
+  // 主格式化入口
+  function formatMarkdown(raw) {
+    if (!raw) return '';
+    // 1. 统一换行符
+    var text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // 2. 分割, 去除尾部空格
+    var lines = text.split('\n').map(function(l) { return l.replace(/[\s\u00A0]+$/, ''); });
+    // 3. 单行修复
+    lines = fixLines(lines);
+    // 4. 平衡围栏
+    lines = balanceFences(lines);
+    // 5. 规整间距
+    lines = normalizeSpacing(lines);
+    return lines.join('\n');
+  }
+
+  function countDisplayLines(text) {
+    if (!text) return 0;
+    return text.replace(/\n$/, '').split('\n').length;
+  }
+
+  /* ===== UI 交互 ===== */
+
+  var debounceTimer = null;
+
+  function updateOutput() {
+    var raw = inputEl.value;
+    var formatted = formatMarkdown(raw);
+    outputEl.value = formatted;
+
+    // 统计信息
+    var charCount = raw.length;
+    var lineCount = raw ? raw.split('\n').length : 0;
+    inputStats.textContent = '字数 ' + charCount;
+    lineStats.textContent = '行 ' + lineCount;
+
+    if (formatted) {
+      var outLines = countDisplayLines(formatted);
+      var outChars = formatted.length;
+      outputStats.textContent = '字数 ' + outChars + ' · 行 ' + outLines;
+      statusDot.className = 'dot dot-ok';
+    } else {
+      outputStats.textContent = '等待输入…';
+      statusDot.className = 'dot dot-warn';
+    }
+  }
+
+  function debouncedUpdate() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(updateOutput, 200);
+  }
+
+  // 复制功能
+  function copyOutput() {
+    var text = outputEl.value;
+    if (!text) { showToast('没有内容可复制', '#fd79a8'); return; }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        showToast('✓ 已复制到剪贴板');
+      }).catch(function() {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    outputEl.select();
+    try {
+      document.execCommand('copy');
+      showToast('✓ 已复制到剪贴板');
+    } catch(e) {
+      showToast('复制失败，请手动复制', '#fd79a8');
+    }
+  }
+
+  var toastTimer = null;
+
+  function showToast(msg, bgColor) {
+    toast.textContent = msg;
+    if (bgColor) toast.style.background = bgColor;
+    else toast.style.background = '#00b894';
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() {
+      toast.classList.remove('show');
+    }, 2000);
+  }
+
+  // 清空
+  function clearAll() {
+    if (inputEl.value && !confirm('确认清空所有内容？')) return;
+    inputEl.value = '';
+    outputEl.value = '';
+    updateOutput();
+    inputEl.focus();
+  }
+
+  // 一键格式化 (手动触发)
+  function manualFormat() {
+    updateOutput();
+  }
+
+  /* ===== 事件绑定 ===== */
+  inputEl.addEventListener('input', debouncedUpdate);
+  formatBtn.addEventListener('click', manualFormat);
+  copyBtn.addEventListener('click', copyOutput);
+  clearBtn.addEventListener('click', clearAll);
+
+  // Ctrl+Enter 快速格式化
+  inputEl.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      manualFormat();
+    }
+  });
+
+  // 初始加载
+  updateOutput();
+
+})();
+</script>
+</body>
+</html>
